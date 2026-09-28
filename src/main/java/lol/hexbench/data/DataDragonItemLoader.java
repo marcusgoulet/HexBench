@@ -47,7 +47,7 @@ public class DataDragonItemLoader {
                 String imageFile = itemNode.get("image").get("full").asText();
                 ItemCategory category = classify(id, name);
 
-                items.add(new TftItem(id, name, imageFile, category, List.of(), ""));
+                items.add(new TftItem(id, name, "", imageFile, category, List.of(), ""));
             }
 
             return items;

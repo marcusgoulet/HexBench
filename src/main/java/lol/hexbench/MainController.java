@@ -4,8 +4,12 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
 import lol.hexbench.model.ItemCategory;
@@ -14,8 +18,13 @@ import lol.hexbench.model.TftItem;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 public class MainController {
+    private static final String ITEM_IMAGE_RESOURCE_PREFIX = "/data/ddragon/16.19.1/img/tft-item/";
+    private static final double GRID_ICON_SIZE = 28;
+    private static final double DETAIL_ICON_SIZE = 24;
+
     @FXML
     private VBox contentArea;
 
@@ -23,6 +32,7 @@ public class MainController {
 
     public void setAppContext(AppContext appContext) {
         this.appContext = appContext;
+        showItems();
     }
 
     @FXML
@@ -50,45 +60,59 @@ public class MainController {
     private void showItemsView(List<TftItem> items) {
         contentArea.getChildren().clear();
 
-        Label titleLabel = new Label("Items");
-        titleLabel.getStyleClass().add("content-title");
-
-        Label summaryLabel = new Label("Loaded " + items.size() + " items, including " + countRecipes(items) + " recipes.");
-        summaryLabel.getStyleClass().add("content-subtitle");
-
-        TabPane tabPane = new TabPane();
-        tabPane.getStyleClass().add("items-tab-pane");
-        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-
-        tabPane.getTabs().add(createAllTab(items));
-        tabPane.getTabs().add(createCoreTab(items));
-        tabPane.getTabs().add(createItemTab("Artifacts", sortForDisplay(filterByCategory(items, ItemCategory.ARTIFACT))));
-        tabPane.getTabs().add(createItemTab("Radiant", sortForDisplay(filterByCategory(items, ItemCategory.RADIANT))));
-        tabPane.getTabs().add(createItemTab("Emblems", sortForDisplay(filterByCategory(items, ItemCategory.EMBLEM))));
-
-        contentArea.getChildren().addAll(titleLabel, summaryLabel, tabPane);
-    }
-
-    private Tab createItemTab(String title, List<TftItem> items) {
-        TilePane itemGrid = createItemGrid(items);
         VBox detailPanel = createDetailPanel();
-
-        ScrollPane scrollPane = new ScrollPane(itemGrid);
-        scrollPane.getStyleClass().add("item-scroll-pane");
-        scrollPane.setFitToWidth(true);
-
+        ScrollPane scrollPane = new ScrollPane();
+        VBox firstContent = createAllItemsContent(items);
         SplitPane splitPane = createItemSplitPane(scrollPane, detailPanel);
-        wireItemSelection(itemGrid, detailPanel);
+        HBox itemTabs = createItemTabBar(items, scrollPane, detailPanel);
 
-        Tab tab = new Tab(title);
-        tab.setContent(splitPane);
-
-        return tab;
+        showItemContent(scrollPane, detailPanel, firstContent);
+        VBox.setVgrow(splitPane, Priority.ALWAYS);
+        contentArea.getChildren().addAll(itemTabs, splitPane);
     }
 
-    private Tab createAllTab(List<TftItem> items) {
+    private HBox createItemTabBar(List<TftItem> items, ScrollPane scrollPane, VBox detailPanel) {
+        HBox tabBar = new HBox();
+        tabBar.getStyleClass().add("item-tab-bar");
+
+        ToggleGroup toggleGroup = new ToggleGroup();
+
+        ToggleButton allButton = createItemTabButton("All", toggleGroup);
+        ToggleButton coreButton = createItemTabButton("Core", toggleGroup);
+        ToggleButton artifactButton = createItemTabButton("Artifacts", toggleGroup);
+        ToggleButton radiantButton = createItemTabButton("Radiant", toggleGroup);
+        ToggleButton emblemButton = createItemTabButton("Emblems", toggleGroup);
+
+        allButton.setOnAction(event -> showItemContent(scrollPane, detailPanel, createAllItemsContent(items)));
+        coreButton.setOnAction(event -> showItemContent(scrollPane, detailPanel, createCoreItemsContent(items)));
+        artifactButton.setOnAction(event -> showItemContent(scrollPane, detailPanel, createSingleCategoryContent(items, ItemCategory.ARTIFACT)));
+        radiantButton.setOnAction(event -> showItemContent(scrollPane, detailPanel, createSingleCategoryContent(items, ItemCategory.RADIANT)));
+        emblemButton.setOnAction(event -> showItemContent(scrollPane, detailPanel, createSingleCategoryContent(items, ItemCategory.EMBLEM)));
+
+        toggleGroup.selectedToggleProperty().addListener((observable, previousToggle, selectedToggle) -> {
+            if (selectedToggle == null) {
+                previousToggle.setSelected(true);
+            }
+        });
+
+        allButton.setSelected(true);
+        tabBar.getChildren().addAll(allButton, coreButton, artifactButton, radiantButton, emblemButton);
+
+        return tabBar;
+    }
+
+    private ToggleButton createItemTabButton(String text, ToggleGroup toggleGroup) {
+        ToggleButton button = new ToggleButton(text);
+        button.getStyleClass().add("item-tab-button");
+        button.setToggleGroup(toggleGroup);
+        button.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(button, Priority.ALWAYS);
+
+        return button;
+    }
+
+    private VBox createAllItemsContent(List<TftItem> items) {
         VBox content = new VBox(12);
-        VBox detailPanel = createDetailPanel();
 
         addItemSection(content, "Components", items, ItemCategory.COMPONENT);
         addItemSection(content, "Completed Items", items, ItemCategory.COMPLETED);
@@ -96,37 +120,35 @@ public class MainController {
         addItemSection(content, "Radiant Items", items, ItemCategory.RADIANT);
         addItemSection(content, "Emblems", items, ItemCategory.EMBLEM);
 
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.getStyleClass().add("item-scroll-pane");
-        scrollPane.setFitToWidth(true);
-
-        SplitPane splitPane = createItemSplitPane(scrollPane, detailPanel);
-        wireItemSelection(content, detailPanel);
-
-        Tab tab = new Tab("All");
-        tab.setContent(splitPane);
-
-        return tab;
+        return content;
     }
 
-    private Tab createCoreTab(List<TftItem> items) {
+    private VBox createCoreItemsContent(List<TftItem> items) {
         VBox content = new VBox(12);
-        VBox detailPanel = createDetailPanel();
 
         addItemSection(content, "Components", items, ItemCategory.COMPONENT);
         addItemSection(content, "Completed Items", items, ItemCategory.COMPLETED);
 
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.getStyleClass().add("item-scroll-pane");
+        return content;
+    }
+
+    private TilePane createSingleCategoryContent(List<TftItem> items, ItemCategory category) {
+        return createItemGrid(sortForDisplay(filterByCategory(items, category)));
+    }
+
+    private void showItemContent(ScrollPane scrollPane, VBox detailPanel, javafx.scene.Node itemContent) {
+        resetDetailPanel(detailPanel);
+        scrollPane.setContent(itemContent);
+        if (!scrollPane.getStyleClass().contains("item-scroll-pane")) {
+            scrollPane.getStyleClass().add("item-scroll-pane");
+        }
         scrollPane.setFitToWidth(true);
 
-        SplitPane splitPane = createItemSplitPane(scrollPane, detailPanel);
-        wireItemSelection(content, detailPanel);
-
-        Tab tab = new Tab("Core");
-        tab.setContent(splitPane);
-
-        return tab;
+        if (itemContent instanceof VBox content) {
+            wireItemSelection(content, detailPanel);
+        } else if (itemContent instanceof TilePane itemGrid) {
+            wireItemSelection(itemGrid, detailPanel);
+        }
     }
 
     private void addItemSection(VBox content, String title, List<TftItem> items, ItemCategory category) {
@@ -149,15 +171,13 @@ public class MainController {
         itemGrid.getStyleClass().add("item-grid");
         itemGrid.setHgap(8);
         itemGrid.setVgap(8);
-        itemGrid.setPrefTileWidth(150);
-        itemGrid.setPrefTileHeight(34);
+        itemGrid.setPrefTileWidth(190);
+        itemGrid.setPrefTileHeight(42);
 
         for (TftItem item : items) {
-            Label itemLabel = new Label(item.getName());
-            itemLabel.getStyleClass().add("item-name");
-            itemLabel.setUserData(item);
-            itemLabel.setMaxWidth(Double.MAX_VALUE);
-            itemGrid.getChildren().add(itemLabel);
+            HBox itemRow = createItemRow(item, GRID_ICON_SIZE, "item-name");
+            itemRow.setMaxWidth(Double.MAX_VALUE);
+            itemGrid.getChildren().add(itemRow);
         }
 
         return itemGrid;
@@ -166,10 +186,19 @@ public class MainController {
     private SplitPane createItemSplitPane(ScrollPane itemContent, VBox detailPanel) {
         SplitPane splitPane = new SplitPane();
         splitPane.getStyleClass().add("item-split-pane");
-        splitPane.getItems().addAll(itemContent, detailPanel);
+        splitPane.getItems().addAll(itemContent, createDetailScrollPane(detailPanel));
         splitPane.setDividerPositions(0.68);
 
         return splitPane;
+    }
+
+    private ScrollPane createDetailScrollPane(VBox detailPanel) {
+        ScrollPane detailScrollPane = new ScrollPane(detailPanel);
+        detailScrollPane.getStyleClass().add("detail-scroll-pane");
+        detailScrollPane.setFitToWidth(true);
+        detailScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+
+        return detailScrollPane;
     }
 
     private VBox createDetailPanel() {
@@ -177,6 +206,14 @@ public class MainController {
         detailPanel.getStyleClass().add("item-detail-panel");
         detailPanel.setPrefWidth(340);
         detailPanel.setMaxWidth(420);
+
+        resetDetailPanel(detailPanel);
+
+        return detailPanel;
+    }
+
+    private void resetDetailPanel(VBox detailPanel) {
+        detailPanel.getChildren().clear();
 
         Label titleLabel = new Label("Select an item");
         titleLabel.getStyleClass().add("detail-title");
@@ -186,8 +223,6 @@ public class MainController {
         subtitleLabel.setWrapText(true);
 
         detailPanel.getChildren().addAll(titleLabel, subtitleLabel);
-
-        return detailPanel;
     }
 
     private void wireItemSelection(VBox content, VBox detailPanel) {
@@ -200,8 +235,8 @@ public class MainController {
 
     private void wireItemSelection(TilePane itemGrid, VBox detailPanel) {
         for (javafx.scene.Node child : itemGrid.getChildren()) {
-            if (child instanceof Label itemLabel && itemLabel.getUserData() instanceof TftItem item) {
-                itemLabel.setOnMouseClicked(event -> showItemDetail(item, detailPanel));
+            if (child instanceof HBox itemRow && itemRow.getUserData() instanceof TftItem item) {
+                itemRow.setOnMouseClicked(event -> showItemDetail(item, detailPanel));
             }
         }
     }
@@ -216,6 +251,8 @@ public class MainController {
         categoryLabel.getStyleClass().add("detail-meta");
 
         detailPanel.getChildren().addAll(titleLabel, categoryLabel);
+        addStatsDetail(item, detailPanel);
+        addDescriptionDetail(item, detailPanel);
 
         if (item.getCategory() == ItemCategory.COMPONENT) {
             addBuildsIntoDetail(item, detailPanel);
@@ -226,6 +263,35 @@ public class MainController {
             noRecipeLabel.getStyleClass().add("detail-text");
             detailPanel.getChildren().add(noRecipeLabel);
         }
+    }
+
+    private void addStatsDetail(TftItem item, VBox detailPanel) {
+        if (item.getStats().isEmpty()) {
+            return;
+        }
+
+        Label sectionTitle = new Label("Stats");
+        sectionTitle.getStyleClass().add("detail-section-title");
+        detailPanel.getChildren().add(sectionTitle);
+
+        for (Map.Entry<String, Double> stat : item.getStats().entrySet()) {
+            Label statLabel = new Label(stat.getKey() + ": " + formatStatValue(stat.getKey(), stat.getValue()));
+            statLabel.getStyleClass().add("detail-text");
+            detailPanel.getChildren().add(statLabel);
+        }
+    }
+
+    private void addDescriptionDetail(TftItem item, VBox detailPanel) {
+        String description = cleanDescription(item.getDescription());
+
+        if (description.isBlank()) {
+            return;
+        }
+
+        Label descriptionLabel = new Label(description);
+        descriptionLabel.getStyleClass().add("detail-description");
+        descriptionLabel.setWrapText(true);
+        detailPanel.getChildren().add(descriptionLabel);
     }
 
     private void addBuildsIntoDetail(TftItem component, VBox detailPanel) {
@@ -243,9 +309,11 @@ public class MainController {
         }
 
         for (TftItem builtItem : builtItems) {
-            Label builtItemLabel = new Label(builtItem.getName());
-            builtItemLabel.getStyleClass().add("detail-text");
-            detailPanel.getChildren().add(builtItemLabel);
+            VBox builtItemRow = new VBox(4);
+            builtItemRow.getStyleClass().add("builds-into-row");
+            builtItemRow.getChildren().add(createItemRow(builtItem, DETAIL_ICON_SIZE, "builds-into-parent-row"));
+            builtItemRow.getChildren().add(createRecipeRow(orderedRecipeComponents(builtItem, component)));
+            detailPanel.getChildren().add(builtItemRow);
         }
     }
 
@@ -263,15 +331,89 @@ public class MainController {
             return;
         }
 
-        String recipeText = components.stream()
-                .map(TftItem::getName)
-                .reduce((first, second) -> first + " + " + second)
-                .orElse("");
+        detailPanel.getChildren().add(createRecipeRow(components));
+    }
 
-        Label recipeLabel = new Label(recipeText);
-        recipeLabel.getStyleClass().add("detail-text");
-        recipeLabel.setWrapText(true);
-        detailPanel.getChildren().add(recipeLabel);
+    private HBox createRecipeRow(List<TftItem> components) {
+        HBox recipeRow = new HBox(8);
+        recipeRow.getStyleClass().add("recipe-row");
+
+        for (int index = 0; index < components.size(); index++) {
+            if (index > 0) {
+                Label plusLabel = new Label("+");
+                plusLabel.getStyleClass().add("detail-meta");
+                recipeRow.getChildren().add(plusLabel);
+            }
+
+            recipeRow.getChildren().add(createItemRow(components.get(index), DETAIL_ICON_SIZE, "detail-item-row"));
+        }
+
+        return recipeRow;
+    }
+
+    private List<TftItem> orderedRecipeComponents(TftItem builtItem, TftItem primaryComponent) {
+        List<TftItem> components = appContext.getItemRepository().findRecipeComponents(builtItem);
+        List<TftItem> orderedComponents = new ArrayList<>();
+
+        for (TftItem component : components) {
+            if (component.getId().equals(primaryComponent.getId())) {
+                orderedComponents.add(component);
+            }
+        }
+
+        for (TftItem component : components) {
+            if (!component.getId().equals(primaryComponent.getId())) {
+                orderedComponents.add(component);
+            }
+        }
+
+        return orderedComponents;
+    }
+
+    private HBox createItemRow(TftItem item, double iconSize, String styleClass) {
+        HBox itemRow = new HBox(8);
+        itemRow.getStyleClass().add(styleClass);
+        itemRow.setUserData(item);
+        itemRow.setMinHeight(iconSize + 8);
+
+        ImageView iconView = createItemIconView(item, iconSize);
+        Label nameLabel = new Label(item.getName());
+        nameLabel.getStyleClass().add("item-row-text");
+        nameLabel.setWrapText(false);
+        nameLabel.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(nameLabel, Priority.ALWAYS);
+
+        if (iconView == null) {
+            itemRow.getChildren().add(nameLabel);
+        } else {
+            itemRow.getChildren().addAll(iconView, nameLabel);
+        }
+
+        return itemRow;
+    }
+
+    private ImageView createItemIconView(TftItem item, double iconSize) {
+        String imageFile = item.getImageFile();
+
+        if (imageFile == null || imageFile.isBlank()) {
+            return null;
+        }
+
+        String imagePath = ITEM_IMAGE_RESOURCE_PREFIX + imageFile;
+        java.net.URL imageUrl = getClass().getResource(imagePath);
+
+        if (imageUrl == null) {
+            return null;
+        }
+
+        Image image = new Image(imageUrl.toExternalForm(), iconSize, iconSize, true, true);
+        ImageView iconView = new ImageView(image);
+        iconView.getStyleClass().add("item-icon");
+        iconView.setFitWidth(iconSize);
+        iconView.setFitHeight(iconSize);
+        iconView.setPreserveRatio(true);
+
+        return iconView;
     }
 
     private List<TftItem> filterByCategory(List<TftItem> items, ItemCategory category) {
@@ -309,15 +451,40 @@ public class MainController {
         };
     }
 
-    private int countRecipes(List<TftItem> items) {
-        int count = 0;
-
-        for (TftItem item : items) {
-            if (!item.getComponentIds().isEmpty()) {
-                count++;
-            }
+    private String cleanDescription(String description) {
+        if (description == null) {
+            return "";
         }
 
-        return count;
+        return description
+                .replace("\\r\\n", "\n")
+                .replace("\\n", "\n")
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("%i:[^%]+%", "")
+                .replaceAll("<[^>]+>", "")
+                .replaceAll("[ \\t]+", " ")
+                .replaceAll(" *\\n *", "\n")
+                .replaceAll("\\n{3,}", "\n\n")
+                .trim();
     }
+
+    private String formatStatValue(String statName, double value) {
+        double roundedValue = Math.round(value * 100.0) / 100.0;
+        String suffix = statUsesPercent(statName) ? "%" : "";
+
+        if (roundedValue == Math.rint(roundedValue)) {
+            return (int) roundedValue + suffix;
+        }
+
+        return String.format(java.util.Locale.US, "%.2f%s", roundedValue, suffix);
+    }
+
+    private boolean statUsesPercent(String statName) {
+        return statName.equals("Attack Damage")
+                || statName.equals("Ability Power")
+                || statName.equals("Attack Speed")
+                || statName.equals("Crit Chance")
+                || statName.equals("Omnivamp");
+    }
+
 }

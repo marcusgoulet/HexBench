@@ -26,7 +26,19 @@ The project has been cleaned up from the default JavaFX starter app:
 - Window title is `HexBench`.
 - Window opens at about 65% of the primary screen size.
 - The UI currently uses a simple modern dark shell.
-- The sidebar is focused on `Items`; Champions, Traits, and Builds are left as TBD comments.
+- The top app header was removed; `HexBench` now lives in the sidebar.
+- The sidebar is focused on `Items` and acts as the current page indicator.
+- Champions, Traits, and Builds are left as TBD comments.
+- The Items view opens automatically after startup.
+- Item category controls are custom full-width tab buttons above the item workspace.
+- Those item tabs span both the scrollable item list and the selected-item detail panel.
+- The selected-item panel shows name, category, cleaned description text, and recipe/builds-into data.
+- The selected-item detail panel has its own vertical scroll pane for long content.
+- Component build targets now show the completed item plus its recipe, with the selected component first and the secondary component second.
+- Item rows now show Data Dragon PNG icons when a local image file exists.
+- Description cleanup currently handles simple markup such as line breaks, tags, and icon tokens.
+- Completed/radiant/artifact item descriptions are enriched from older/generic CommunityDragon records when the current `DA_...` item record has no description.
+- Simple description placeholders such as `@ManaPercIncrease*100@` are resolved from the enriched `effects` map.
 
 The app is currently more foundation than feature. That is intentional.
 
@@ -56,6 +68,9 @@ src/main/resources/
 │   │       └── tft-en_us.json
 │   └── ddragon/
 │       └── 16.19.1/
+│           ├── img/
+│           │   └── tft-item/
+│           │       └── *.png
 │           └── tft-item.json
 └── lol/
     └── hexbench/
@@ -93,8 +108,9 @@ image
 ```
 
 - Data Dragon does not appear to provide item recipes/build paths in this file.
-
-This means HexBench should parse names/images from Data Dragon, but maintain its own recipe/build-path data later.
+- Data Dragon is still useful as a current Set 18 allowlist because current item entries live under `TFTSet18/Set18_Items/`.
+- Data Dragon also gives convenient `.png` image filenames through `image.full`.
+- Data Dragon item PNGs are extracted locally from `dragontail-16.19.1.tgz` into `src/main/resources/data/ddragon/16.19.1/img/tft-item/`.
 
 Update: CommunityDragon is now also stored locally:
 
@@ -113,7 +129,19 @@ composition
 effects
 ```
 
-The `composition` field gives recipe component IDs. The app currently uses Data Dragon as the current-set filter/image source and CommunityDragon as the recipe/description enrichment source.
+The `composition` field gives recipe component IDs.
+
+Current source-of-truth decision:
+
+- CommunityDragon is the primary content source for items.
+- Data Dragon is used as a current-set allowlist and PNG image filename fallback.
+- CommunityDragon provides `icon` paths, but those point to `.tex` assets, so they are stored separately from Data Dragon image filenames.
+- Current `DA_...` CommunityDragon item records often have recipe/icon data but no `desc` or `effects`.
+- The loader tries to enrich completed, radiant, and artifact items from described fallback records with matching normalized names, such as `DA_AdaptiveHelm` -> `TFT_Item_AdaptiveHelm`.
+- Components are enriched through exact fallback ID mappings, such as `DA_Component_BFSword` -> `TFT_Item_BFSword`; Spatula and Frying Pan intentionally remain statless.
+- Flat item stats are normalized from known fallback `effects` keys such as `AD`, `AP`, `AS`, `Armor`, `MagicResist`, `Health`, `Mana`, `ManaRegen`, `CritChance`, and `StatOmnivamp`.
+- `AD`, `AP`, `AS`, `CritChance`, and `StatOmnivamp` are displayed as percent-style values.
+- Emblems and consumables are intentionally skipped by the fallback enrichment pass for now because old same-name records can carry set-specific behavior that may be wrong.
 
 ## Model Decisions
 
@@ -122,8 +150,14 @@ The `composition` field gives recipe component IDs. The app currently uses Data 
 ```text
 id
 name
+iconPath
 imageFile
 category
+componentIds
+description
+stats
+effects
+descriptionSourceId
 ```
 
 `ItemCategory` is the app's controlled list of item buckets:
@@ -193,15 +227,23 @@ If IntelliJ flags Jackson vulnerability warnings, prefer updating Jackson rather
 
 ## Next Likely Steps
 
-1. Start turning the Items summary into a real item tracker view.
+1. Refine the current Items tracker view.
    - Keep it modest.
-   - First likely UI step: show components and completed items separately.
-   - Avoid item images until the data/model flow is stable.
+   - Tune spacing and visual hierarchy in the selected-item panel now that icons and recipes are visible.
+   - Item images are now in the first modest pass; avoid turning the item grid into a dense visual redesign until behavior settles.
 
-2. Add item selection behavior.
-   - Clicking a component should eventually show completed items that use it.
-   - Clicking a completed item should show its component recipe.
+2. Improve item selection behavior.
+   - Clicking a component shows completed items that use it.
+   - Clicking a completed item shows its component recipe.
    - The detail panel should stay under roughly 45% of the item tab width.
+   - The detail panel now scrolls independently for long selected-item content.
+   - Selected item visual state in the item grid has not been added yet.
+   - Component build targets now include the secondary component needed to create each built item.
+
+3. Resolve item description placeholders.
+   - Simple CommunityDragon placeholders such as `@AttackSpeed*100@` are now resolved from `effects`.
+   - Runtime/computed placeholders such as `@TFTUnitProperty.item:...@` are not resolved yet.
+   - Fallback source matching should be audited before treating all displayed values as authoritative.
 
 ## Guidance For A Future Agent
 
