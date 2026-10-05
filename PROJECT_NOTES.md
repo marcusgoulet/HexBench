@@ -25,15 +25,22 @@ The project has been cleaned up from the default JavaFX starter app:
 - App stylesheet is `style.css`.
 - Window title is `HexBench`.
 - Window opens at about 65% of the primary screen size.
-- The UI currently uses a simple modern dark shell.
-- The top app header was removed; `HexBench` now lives in the sidebar.
+- The UI currently uses a modern dark desktop shell.
+- The top app header was removed; `HexBench` now lives in a wider sidebar brand area.
 - The sidebar is focused on `Items` and acts as the current page indicator.
+- The sidebar now includes a small navigation section label and a footer for local data/version state.
+- The app palette is based on Bone `#CCC7B9`, Frosted Mint `#EAF9D9`, Sand Dune `#E2D4BA`, Dusty Rose `#AF7A6D`, and Wine Plum `#653239`.
 - Champions, Traits, and Builds are left as TBD comments.
 - The Items view opens automatically after startup.
 - Item category controls are custom full-width tab buttons above the item workspace.
 - Those item tabs span both the scrollable item list and the selected-item detail panel.
 - The selected-item panel shows name, category, cleaned description text, and recipe/builds-into data.
 - The selected-item detail panel has its own vertical scroll pane for long content.
+- The selected-item detail panel now has a visual header with the item icon, name, and category.
+- Detail panel content is grouped into sections for stats, description, recipe, and build targets.
+- Stats are displayed as aligned name/value rows.
+- Item rows have a selected visual state after click.
+- Recipe components and build-target rows in the detail panel are clickable and update the selected item detail.
 - Component build targets now show the completed item plus its recipe, with the selected component first and the secondary component second.
 - Item rows now show Data Dragon PNG icons when a local image file exists.
 - Description cleanup currently handles simple markup such as line breaks, tags, and icon tokens.
@@ -225,11 +232,49 @@ requires com.fasterxml.jackson.databind;
 
 If IntelliJ flags Jackson vulnerability warnings, prefer updating Jackson rather than ignoring the warning.
 
+## App Environment Modernization Notes
+
+Current modernization direction is intentionally staged so the app becomes more polished without turning into a redesign detour.
+
+Today's general focus was JavaFX UI behavior and visual structure, not a color redesign. The goal was to make the existing Items workspace feel more like an intentional desktop inspector: clearer selection state, clickable related items, and a detail panel that groups information instead of dumping labels into a stack. Small, useful changes. No majestic framework pageant.
+
+1. App shell.
+   - Keep the first screen as the usable Items workspace, not a landing page.
+   - Keep native desktop window chrome for now.
+   - Modernize the sidebar, navigation grouping, and data/status footer first.
+   - Use the footer for local data version and future cache/sync state.
+   - The first shell pass is underway.
+
+2. Window behavior.
+   - Add sensible minimum window constraints as the split workspace evolves.
+   - Later, remember last window size and position in user-local app settings.
+   - Later, remember selected page/tab if it improves the desktop workflow.
+   - Keep Riot/network sync out of app startup; app launch should stay fast and offline-safe.
+
+3. Visual system.
+   - Current palette: Bone `#CCC7B9`, Frosted Mint `#EAF9D9`, Sand Dune `#E2D4BA`, Dusty Rose `#AF7A6D`, and Wine Plum `#653239`.
+   - Consolidate dark-theme colors into a more deliberate palette over time.
+   - Make hover, selected, focused, tab, row, and detail-panel states feel related.
+   - Selected item visual state has been added for item grid rows.
+   - The detail panel now uses section containers for clearer hierarchy.
+   - Keep spacing and hierarchy quiet, utilitarian, and optimized for repeated use.
+
+## Completed Today
+
+- Added persistent selected-row styling for item grid clicks.
+- Added a selected-item detail header that includes the item's icon, name, and category.
+- Made recipe components and build-target rows clickable from inside the detail panel.
+- Synced detail-panel navigation with the visible item grid selection when the clicked item is present in the current tab.
+- Grouped detail panel content into visual sections for stats, description, recipe, and build targets.
+- Changed stats from loose text lines into aligned name/value rows.
+- Fixed a stat-row clipping issue by allowing stat names to shrink/wrap while preserving value width.
+- Kept the work focused on JavaFX layout, state, and interaction rather than changing the palette.
+
 ## Next Likely Steps
 
 1. Refine the current Items tracker view.
    - Keep it modest.
-   - Tune spacing and visual hierarchy in the selected-item panel now that icons and recipes are visible.
+   - Continue tuning spacing and visual hierarchy in the selected-item panel now that sections and clickable related items are visible.
    - Item images are now in the first modest pass; avoid turning the item grid into a dense visual redesign until behavior settles.
 
 2. Improve item selection behavior.
@@ -237,7 +282,9 @@ If IntelliJ flags Jackson vulnerability warnings, prefer updating Jackson rather
    - Clicking a completed item shows its component recipe.
    - The detail panel should stay under roughly 45% of the item tab width.
    - The detail panel now scrolls independently for long selected-item content.
-   - Selected item visual state in the item grid has not been added yet.
+   - Selected item visual state in the item grid has been added.
+   - Recipe and build-target rows are now clickable from the detail panel.
+   - Consider whether selected item state should persist when switching tabs.
    - Component build targets now include the secondary component needed to create each built item.
 
 3. Resolve item description placeholders.

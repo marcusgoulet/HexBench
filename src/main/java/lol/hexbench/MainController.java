@@ -10,6 +10,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
 import lol.hexbench.model.ItemCategory;
@@ -17,6 +18,7 @@ import lol.hexbench.model.TftItem;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +31,8 @@ public class MainController {
     private VBox contentArea;
 
     private AppContext appContext;
+    private HBox selectedItemRow;
+    private final Map<String, HBox> visibleItemRowsById = new HashMap<>();
 
     public void setAppContext(AppContext appContext) {
         this.appContext = appContext;
@@ -137,6 +141,8 @@ public class MainController {
     }
 
     private void showItemContent(ScrollPane scrollPane, VBox detailPanel, javafx.scene.Node itemContent) {
+        selectedItemRow = null;
+        visibleItemRowsById.clear();
         resetDetailPanel(detailPanel);
         scrollPane.setContent(itemContent);
         if (!scrollPane.getStyleClass().contains("item-scroll-pane")) {
@@ -236,21 +242,33 @@ public class MainController {
     private void wireItemSelection(TilePane itemGrid, VBox detailPanel) {
         for (javafx.scene.Node child : itemGrid.getChildren()) {
             if (child instanceof HBox itemRow && itemRow.getUserData() instanceof TftItem item) {
-                itemRow.setOnMouseClicked(event -> showItemDetail(item, detailPanel));
+                visibleItemRowsById.put(item.getId(), itemRow);
+                itemRow.setOnMouseClicked(event -> selectItem(item, detailPanel));
             }
+        }
+    }
+
+    private void selectItem(TftItem item, VBox detailPanel) {
+        selectItemRow(visibleItemRowsById.get(item.getId()));
+        showItemDetail(item, detailPanel);
+    }
+
+    private void selectItemRow(HBox itemRow) {
+        if (selectedItemRow != null) {
+            selectedItemRow.getStyleClass().remove("selected-item-row");
+        }
+
+        selectedItemRow = itemRow;
+
+        if (selectedItemRow != null && !selectedItemRow.getStyleClass().contains("selected-item-row")) {
+            selectedItemRow.getStyleClass().add("selected-item-row");
         }
     }
 
     private void showItemDetail(TftItem item, VBox detailPanel) {
         detailPanel.getChildren().clear();
 
-        Label titleLabel = new Label(item.getName());
-        titleLabel.getStyleClass().add("detail-title");
-
-        Label categoryLabel = new Label(item.getCategory().toString());
-        categoryLabel.getStyleClass().add("detail-meta");
-
-        detailPanel.getChildren().addAll(titleLabel, categoryLabel);
+        detailPanel.getChildren().add(createDetailHeader(item));
         addStatsDetail(item, detailPanel);
         addDescriptionDetail(item, detailPanel);
 
@@ -259,9 +277,11 @@ public class MainController {
         } else if (!item.getComponentIds().isEmpty()) {
             addRecipeDetail(item, detailPanel);
         } else {
+            VBox section = createDetailSection("Recipe");
             Label noRecipeLabel = new Label("No standard recipe.");
             noRecipeLabel.getStyleClass().add("detail-text");
-            detailPanel.getChildren().add(noRecipeLabel);
+            section.getChildren().add(noRecipeLabel);
+            detailPanel.getChildren().add(section);
         }
     }
 
@@ -270,15 +290,29 @@ public class MainController {
             return;
         }
 
-        Label sectionTitle = new Label("Stats");
-        sectionTitle.getStyleClass().add("detail-section-title");
-        detailPanel.getChildren().add(sectionTitle);
+        VBox section = createDetailSection("Stats");
 
         for (Map.Entry<String, Double> stat : item.getStats().entrySet()) {
-            Label statLabel = new Label(stat.getKey() + ": " + formatStatValue(stat.getKey(), stat.getValue()));
-            statLabel.getStyleClass().add("detail-text");
-            detailPanel.getChildren().add(statLabel);
+            HBox statRow = new HBox(8);
+            statRow.getStyleClass().add("stat-row");
+            statRow.setMaxWidth(Double.MAX_VALUE);
+
+            Label nameLabel = new Label(stat.getKey());
+            nameLabel.getStyleClass().add("stat-name");
+            nameLabel.setMinWidth(0);
+            nameLabel.setMaxWidth(Double.MAX_VALUE);
+            nameLabel.setWrapText(true);
+            HBox.setHgrow(nameLabel, Priority.ALWAYS);
+
+            Label valueLabel = new Label(formatStatValue(stat.getKey(), stat.getValue()));
+            valueLabel.getStyleClass().add("stat-value");
+            valueLabel.setMinWidth(Region.USE_PREF_SIZE);
+
+            statRow.getChildren().addAll(nameLabel, valueLabel);
+            section.getChildren().add(statRow);
         }
+
+        detailPanel.getChildren().add(section);
     }
 
     private void addDescriptionDetail(TftItem item, VBox detailPanel) {
@@ -291,50 +325,96 @@ public class MainController {
         Label descriptionLabel = new Label(description);
         descriptionLabel.getStyleClass().add("detail-description");
         descriptionLabel.setWrapText(true);
-        detailPanel.getChildren().add(descriptionLabel);
+
+        VBox section = createDetailSection("Description");
+        section.getChildren().add(descriptionLabel);
+        detailPanel.getChildren().add(section);
     }
 
     private void addBuildsIntoDetail(TftItem component, VBox detailPanel) {
-        Label sectionTitle = new Label("Builds Into");
-        sectionTitle.getStyleClass().add("detail-section-title");
-        detailPanel.getChildren().add(sectionTitle);
+        VBox section = createDetailSection("Builds Into");
 
         List<TftItem> builtItems = sortForDisplay(appContext.getItemRepository().findItemsBuiltFrom(component.getId()));
 
         if (builtItems.isEmpty()) {
             Label emptyLabel = new Label("No known completed items.");
             emptyLabel.getStyleClass().add("detail-text");
-            detailPanel.getChildren().add(emptyLabel);
+            section.getChildren().add(emptyLabel);
+            detailPanel.getChildren().add(section);
             return;
         }
 
         for (TftItem builtItem : builtItems) {
             VBox builtItemRow = new VBox(4);
             builtItemRow.getStyleClass().add("builds-into-row");
-            builtItemRow.getChildren().add(createItemRow(builtItem, DETAIL_ICON_SIZE, "builds-into-parent-row"));
-            builtItemRow.getChildren().add(createRecipeRow(orderedRecipeComponents(builtItem, component)));
-            detailPanel.getChildren().add(builtItemRow);
+            builtItemRow.getChildren().add(createClickableDetailItemRow(builtItem, "builds-into-parent-row", detailPanel));
+            builtItemRow.getChildren().add(createRecipeRow(orderedRecipeComponents(builtItem, component), detailPanel));
+            section.getChildren().add(builtItemRow);
         }
+
+        detailPanel.getChildren().add(section);
     }
 
     private void addRecipeDetail(TftItem item, VBox detailPanel) {
-        Label sectionTitle = new Label("Recipe");
-        sectionTitle.getStyleClass().add("detail-section-title");
-        detailPanel.getChildren().add(sectionTitle);
+        VBox section = createDetailSection("Recipe");
 
         List<TftItem> components = appContext.getItemRepository().findRecipeComponents(item);
 
         if (components.isEmpty()) {
             Label emptyLabel = new Label("Recipe data is unavailable.");
             emptyLabel.getStyleClass().add("detail-text");
-            detailPanel.getChildren().add(emptyLabel);
+            section.getChildren().add(emptyLabel);
+            detailPanel.getChildren().add(section);
             return;
         }
 
-        detailPanel.getChildren().add(createRecipeRow(components));
+        section.getChildren().add(createRecipeRow(components, detailPanel));
+        detailPanel.getChildren().add(section);
     }
 
-    private HBox createRecipeRow(List<TftItem> components) {
+    private VBox createDetailSection(String title) {
+        VBox section = new VBox(8);
+        section.getStyleClass().add("detail-section");
+
+        Label sectionTitle = new Label(title);
+        sectionTitle.getStyleClass().add("detail-section-title");
+
+        section.getChildren().add(sectionTitle);
+
+        return section;
+    }
+
+    private HBox createDetailHeader(TftItem item) {
+        HBox header = new HBox(10);
+        header.getStyleClass().add("detail-header");
+
+        ImageView iconView = createItemIconView(item, 42);
+        if (iconView != null) {
+            iconView.getStyleClass().add("detail-header-icon");
+        }
+
+        VBox titleStack = new VBox(2);
+
+        Label titleLabel = new Label(item.getName());
+        titleLabel.getStyleClass().add("detail-title");
+        titleLabel.setWrapText(true);
+
+        Label categoryLabel = new Label(item.getCategory().toString());
+        categoryLabel.getStyleClass().add("detail-meta");
+
+        titleStack.getChildren().addAll(titleLabel, categoryLabel);
+        HBox.setHgrow(titleStack, Priority.ALWAYS);
+
+        if (iconView == null) {
+            header.getChildren().add(titleStack);
+        } else {
+            header.getChildren().addAll(iconView, titleStack);
+        }
+
+        return header;
+    }
+
+    private HBox createRecipeRow(List<TftItem> components, VBox detailPanel) {
         HBox recipeRow = new HBox(8);
         recipeRow.getStyleClass().add("recipe-row");
 
@@ -345,10 +425,21 @@ public class MainController {
                 recipeRow.getChildren().add(plusLabel);
             }
 
-            recipeRow.getChildren().add(createItemRow(components.get(index), DETAIL_ICON_SIZE, "detail-item-row"));
+            recipeRow.getChildren().add(createClickableDetailItemRow(components.get(index), "detail-item-row", detailPanel));
         }
 
         return recipeRow;
+    }
+
+    private HBox createClickableDetailItemRow(TftItem item, String styleClass, VBox detailPanel) {
+        HBox itemRow = createItemRow(item, DETAIL_ICON_SIZE, styleClass);
+        itemRow.getStyleClass().add("clickable-detail-item-row");
+        itemRow.setOnMouseClicked(event -> {
+            selectItem(item, detailPanel);
+            event.consume();
+        });
+
+        return itemRow;
     }
 
     private List<TftItem> orderedRecipeComponents(TftItem builtItem, TftItem primaryComponent) {
