@@ -30,6 +30,14 @@ HexBench currently focuses on TFT items:
 
 The app is still early and intentionally modest. It is meant to become a useful TFT reference tool one piece at a time.
 
+## Tech Stack
+
+- Java 25
+- JavaFX 21
+- Maven
+- Jackson Databind
+- JUnit 5
+
 ## Running the App
 
 Use the Maven wrapper:
