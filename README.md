@@ -12,6 +12,12 @@ The project is intentionally scoped around Items first. Champions, Traits, and B
 - Click recipe components and build-target rows from the detail panel.
 - Use a dark desktop layout with a sidebar and item inspector panel.
 
+Default Item Page
+![HexBench Item Browser](img/Hexbench%20Item%20Page.png)
+
+Item Selection
+![Hexbench Item Selection](img/Hexbench%20Item%20Page%202.png)
+
 ## Current Scope
 
 HexBench currently focuses on TFT items:
@@ -56,3 +62,8 @@ The current focus is making the Items view easier to use and read:
 ## Status
 
 HexBench is a work in progress. Expect rough edges while the item tracker foundation is being built.
+
+## Disclaimer
+
+HexBench isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially 
+involved in producing or managing Riot Games properties.
